@@ -6,6 +6,8 @@ __author__ = 'Taavi'
 import Tkinter as Tk
 import Queue
 import logging
+from game.board import *
+from PIL import Image, ImageTk
 
 class Application(Tk.Frame):
 
@@ -46,21 +48,15 @@ class Application(Tk.Frame):
 
     def create_widgets(self):
         master_frame = Tk.Frame(self)
+        board1 = Board()
+        board_frame1 = board1.init_board(master_frame)
 
-        self.name_entry = Tk.Entry(master_frame, textvariable=self.name_var)
-        self.name_entry.config(state=Tk.DISABLED)
-        self.name_entry.pack(padx=5, pady=0, side=Tk.LEFT, anchor="nw")
+        board2 = Board()
+        board_frame2 = board2.init_board(master_frame)
 
-        self.set_name_button = Tk.Button(master_frame, text="Set name", command=self.set_name)
-        self.set_name_button.pack(padx=5, pady=0, side=Tk.LEFT, anchor="nw")
+        board_frame1.pack(side=Tk.LEFT, padx=10)
+        board_frame2.pack(side=Tk.RIGHT, padx=10)
 
-        self.text_box = Tk.Text(master_frame, width=100, height=1000)
-        self.text_box.bind("<KeyRelease>", self.on_text_changed_handler)
-        self.text_box.pack(side=Tk.TOP)
-        self.text_box.config(state=Tk.DISABLED)
-
-        self.last_text = list(unicode(self.text_box.get("1.0", Tk.END)))
-        self.last_text.pop()
         master_frame.pack()
     #
     # PUBLIC
