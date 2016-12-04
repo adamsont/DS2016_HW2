@@ -29,6 +29,16 @@ class Application(Tk.Frame):
         self.initialized = False
         self.introduced = False
 
+        self.selected_tool_var = Tk.StringVar()
+        self.selected_tool_var.set("Set ships")
+
+        self.selected_state_var = Tk.StringVar()
+        self.selected_state_var.set("SETTING SHIPS")
+
+
+        self.own_board = Board()
+        self.other_board = Board()
+
         #
         #Widgets
         #
@@ -48,16 +58,43 @@ class Application(Tk.Frame):
 
     def create_widgets(self):
         master_frame = Tk.Frame(self)
-        board1 = Board()
-        board_frame1 = board1.init_board(master_frame)
+        self.own_board = Board()
+        own_board_frame = self.own_board.init_board(master_frame, True)
+        self.own_board.on_click_delegate = self.on_board_click
 
-        board2 = Board()
-        board_frame2 = board2.init_board(master_frame)
+        self.other_board = Board()
+        other_board_frame = self.other_board.init_board(master_frame, False)
 
-        board_frame1.pack(side=Tk.LEFT, padx=10)
-        board_frame2.pack(side=Tk.RIGHT, padx=10)
+        own_board_frame.grid(row=1, column=0, padx=10)
+        other_board_frame.grid(row=1, column=1, padx=10)
+
+        menu_frame = Tk.Frame(master_frame)
+        state_menu = Tk.OptionMenu(menu_frame, self.selected_state_var, "PLAYING", "SETTING SHIPS")
+        state_menu.pack(side=Tk.LEFT)
+
+        tool_menu = Tk.OptionMenu(menu_frame, self.selected_tool_var, "Set ships", "Set hit")
+        tool_menu.pack(side=Tk.RIGHT)
+
+        menu_frame.grid(row=0, column=0, pady=10)
 
         master_frame.pack()
+
+    def on_board_click(self, loc):
+        logging.debug("client_main.on_board_click()")
+
+        if self.selected_state_var.get() == "PLAYING":
+            logging.info("State: PLAYING")
+            self.own_board.set_state(Board.PLAYING)
+        elif self.selected_state_var.get() == "SETTING SHIPS":
+            logging.info("State: SETTING SHIPS")
+            self.own_board.set_state(Board.SETTING_SHIPS)
+
+        if self.selected_tool_var.get() == "Set ships":
+            logging.info("Setting ship")
+            self.own_board.set_ship(loc[0], loc[1])
+        elif self.selected_tool_var.get() == "Set hit":
+            logging.info("Setting hit")
+            self.own_board.set_hit(loc[0], loc[1])
     #
     # PUBLIC
     #
