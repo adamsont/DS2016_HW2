@@ -7,6 +7,12 @@ import logging
 import copy
 
 
+class Ship:
+    def __init__(self, name, size):
+        self.name = name
+        self.size = size
+
+
 class Board:
     # States
 
@@ -89,6 +95,22 @@ class Board:
         for slot in self.slots:
             self.set_slot_state(slot, Slot.EMPTY)
 
+    def parse_set_serialized_board(self, serialized_board):
+        serialized_slots = serialized_board.split(Slot.OBJ_SEPARATOR)
+
+        for serialized_slot in serialized_slots:
+            parts = serialized_slot.split(Slot.FIELD_SEPARATOR)
+            slot = self.find_slot(int(parts[0]), int(parts[1]))
+            self.set_slot_state(slot, int(parts[2]))
+
+    def get_serialized_board(self):
+        serialized_board = ""
+
+        for slot in self.slots:
+            serialized_board += slot.serialize()
+
+        serialized_board = serialized_board[:-1]
+        return serialized_board
     #
     # PRIVATE
     #
@@ -112,7 +134,7 @@ class Board:
         slot.state = state
         self.set_picture(slot.x, slot.y, slot.state)
 
-    def try_set_ship(self, x, y, direction):
+    def try_set_ship(self, x, y, direction, is_first):
         c_slot = self.find_slot(x, y)
         ex_slot = None
 
@@ -121,7 +143,9 @@ class Board:
         if c_slot is None:
             return False
         else:
-            if direction == 'N':
+            if is_first:
+                ex_slot = None
+            elif direction == 'N':
                 ex_slot = self.find_slot(c_slot.x, c_slot.y + 1)
             elif direction == 'S':
                 ex_slot = self.find_slot(c_slot.x, c_slot.y - 1)
@@ -215,8 +239,12 @@ class Board:
 
         success = True
         for s_slot in ship_slots:
-            if not self.try_set_ship(s_slot.x, s_slot.y, direction):
-                success = False
+            if s_slot == start_slot:
+                if not self.try_set_ship(s_slot.x, s_slot.y, direction, True):
+                    success = False
+            else:
+                if not self.try_set_ship(s_slot.x, s_slot.y, direction, False):
+                    success = False
 
         if success:
             for ss_slot in ship_slots:
