@@ -11,3 +11,6 @@ class Slot:
         self.x = x
         self.y = y
         self.state = self.EMPTY
+
+    def to_string(self):
+        return "Slot (" + str(self.x) + " : " + str(self.y) + ") s:" + str(self.state)

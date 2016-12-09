@@ -4,6 +4,8 @@ import Tkinter as Tk
 from PIL import Image, ImageTk
 from slot import *
 import logging
+import copy
+
 
 class Board:
     # States
@@ -26,8 +28,8 @@ class Board:
     def init_board(self, master_frame, is_interactive):
         frame = Tk.Frame(master_frame)
 
-        for i in range(11):
-            for j in range(11):
+        for i in range(10):
+            for j in range(10):
                 l = Tk.Label(frame, image=self.empty_img)
 
                 if is_interactive:
@@ -35,9 +37,9 @@ class Board:
 
                 l.grid(row=i, column=j)
                 l.image = self.empty_img
-                self.label_LUT[l] = (i,j)
+                self.label_LUT[l] = (j,i)
 
-                slot = Slot(i, j)
+                slot = Slot(j, i)
                 self.slots.append(slot)
 
         return frame
@@ -71,7 +73,7 @@ class Board:
         for slot in self.slots:
             if slot.x == x and slot.y == y:
                 if slot.state == Slot.EMPTY:
-                    self.set_slot(slot, Slot.SHIP)
+                    self.set_slot_state(slot, Slot.SHIP)
                     return True
                 elif slot.state == Slot.SHIP or \
                      slot.state == Slot.HIT or \
@@ -85,7 +87,7 @@ class Board:
 
     def clear(self):
         for slot in self.slots:
-            self.set_slot(slot, Slot.EMPTY)
+            self.set_slot_state(slot, Slot.EMPTY)
 
     #
     # PRIVATE
@@ -99,9 +101,63 @@ class Board:
 
         print loc
 
-    def set_slot(self, slot, state):
+    def find_slot(self, x, y):
+        for slot in self.slots:
+            if slot.x == x and slot.y == y:
+                return slot
+
+        return None
+
+    def set_slot_state(self, slot, state):
         slot.state = state
         self.set_picture(slot.x, slot.y, slot.state)
+
+    def try_set_ship(self, x, y, direction):
+        c_slot = self.find_slot(x, y)
+        ex_slot = None
+
+        logging.debug("Testing: " + c_slot.to_string())
+
+        if c_slot is None:
+            return False
+        else:
+            if direction == 'N':
+                ex_slot = self.find_slot(c_slot.x, c_slot.y + 1)
+            elif direction == 'S':
+                ex_slot = self.find_slot(c_slot.x, c_slot.y - 1)
+            elif direction == 'W':
+                ex_slot = self.find_slot(c_slot.x + 1, c_slot.y)
+            elif direction == 'E':
+                ex_slot = self.find_slot(c_slot.x - 1, c_slot.y)
+
+        surrounding_slots = self.get_surrounding_slots(c_slot)
+
+        for slot in surrounding_slots:
+            # if slot is not None:
+            #     logging.debug("Testing: " + slot.to_string())
+            #     if slot.state == 3:
+            #         logging.debug("it is ship")
+            #     if ex_slot is None:
+            #         logging.debug("Nothing to exclude")
+            #     elif slot.x == ex_slot.x and slot.y == ex_slot.y:
+            #         logging.debug("Slot is ex_slot")
+            #     else:
+            #         logging.debug("Slot is not ex_slot")
+
+            if slot is None:
+                continue
+            elif slot.state == Slot.SHIP:
+                if ex_slot is None:
+                    logging.debug("Returning false")
+                    return False
+                elif slot.x == ex_slot.x and slot.y == ex_slot.y:
+                    continue
+                else:
+                    logging.debug("Returning false")
+                    return False
+
+        #self.set_slot_state(c_slot, Slot.SHIP)
+        return True
 
     def set_picture(self, x, y, condition):
         for label in self.label_LUT.keys():
@@ -113,4 +169,59 @@ class Board:
                 elif condition == Slot.SHIP:
                     label.config(image=self.ship_img)
 
+    def get_surrounding_slots(self, slot):
+        surround_slots = []
+
+        surround_slots.append(self.find_slot(slot.x - 1, slot.y - 1))
+        surround_slots.append(self.find_slot(slot.x - 1, slot.y))
+        surround_slots.append(self.find_slot(slot.x - 1, slot.y + 1))
+        surround_slots.append(self.find_slot(slot.x, slot.y - 1))
+        surround_slots.append(self.find_slot(slot.x, slot.y + 1))
+        surround_slots.append(self.find_slot(slot.x + 1, slot.y - 1))
+        surround_slots.append(self.find_slot(slot.x + 1, slot.y))
+        surround_slots.append(self.find_slot(slot.x + 1, slot.y + 1))
+
+        logging.debug("Surrounding slot:" + slot.to_string())
+        for s_slot in surround_slots:
+            if s_slot is not None:
+                logging.debug(s_slot.to_string())
+        return surround_slots
+
+    #Direction N, E, S, W
+    def place_ship(self, x, y, size, direction):
+        start_slot = self.find_slot(x, y)
+        ship_slots = []
+        ship_slots.append(start_slot)
+        l_slot = start_slot
+
+        if start_slot is None:
+            return
+
+        for i in range(size-1):
+            if direction == 'N':
+                slot = self.find_slot(l_slot.x, l_slot.y - 1)
+            elif direction == 'S':
+                slot = self.find_slot(l_slot.x, l_slot.y + 1)
+            elif direction == 'W':
+                slot = self.find_slot(l_slot.x - 1, l_slot.y)
+            elif direction == 'E':
+                slot = self.find_slot(l_slot.x + 1, l_slot.y)
+
+            if slot is None:
+                return False
+            else:
+                ship_slots.append(slot)
+                l_slot = copy.copy(slot)
+
+        success = True
+        for s_slot in ship_slots:
+            if not self.try_set_ship(s_slot.x, s_slot.y, direction):
+                success = False
+
+        if success:
+            for ss_slot in ship_slots:
+                logging.debug("Setting to ship: " + ss_slot.to_string())
+                self.set_slot_state(ss_slot, Slot.SHIP)
+
+        return success
 

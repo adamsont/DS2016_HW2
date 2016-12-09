@@ -10,6 +10,13 @@ from game.board import *
 from PIL import Image, ImageTk
 
 class Application(Tk.Frame):
+    #
+    # States
+    #
+
+    PLAYING = 1
+    SETTING_UP = 2
+    NOT_CONNECTED = 3
 
     def __init__(self, master=None):
         Tk.Frame.__init__(self, master)
@@ -19,15 +26,18 @@ class Application(Tk.Frame):
         master.geometry('{}x{}'.format(1100, 600))
 
         #
-        # Variables
+        # Logic stuff
         #
 
         self.msg_queue = Queue.Queue()
-        self.last_text = list()
+        self.state = self.SETTING_UP
+
+        #
+        # Variables
+        #
+
         self.name_var = Tk.StringVar()
         self.name_var.set('Unknown')
-        self.initialized = False
-        self.introduced = False
 
         self.selected_tool_var = Tk.StringVar()
         self.selected_tool_var.set("Set ships")
@@ -35,6 +45,11 @@ class Application(Tk.Frame):
         self.selected_state_var = Tk.StringVar()
         self.selected_state_var.set("SETTING SHIPS")
 
+        self.selected_direction_var = Tk.StringVar()
+        self.selected_direction_var.set("N")
+
+        self.selected_ship_size_var = Tk.StringVar()
+        self.selected_ship_size_var.set("1")
 
         self.own_board = Board()
         self.other_board = Board()
@@ -56,6 +71,11 @@ class Application(Tk.Frame):
 
         self.master.after(10, self.inner_loop)
 
+    def state_machine(self):
+        self.master.after(2, self.state_machine)
+
+        if
+
     def create_widgets(self):
         master_frame = Tk.Frame(self)
         self.own_board = Board()
@@ -70,10 +90,16 @@ class Application(Tk.Frame):
 
         menu_frame = Tk.Frame(master_frame)
         state_menu = Tk.OptionMenu(menu_frame, self.selected_state_var, "PLAYING", "SETTING SHIPS")
-        state_menu.pack(side=Tk.LEFT)
+        state_menu.pack(side=Tk.RIGHT)
 
         tool_menu = Tk.OptionMenu(menu_frame, self.selected_tool_var, "Set ships", "Set hit")
         tool_menu.pack(side=Tk.RIGHT)
+
+        ship_direction_menu = Tk.OptionMenu(menu_frame, self.selected_direction_var, "N", "W", "S", "E")
+        ship_direction_menu.pack(side=Tk.RIGHT)
+
+        ship_size_menu = Tk.OptionMenu(menu_frame, self.selected_ship_size_var, "1", "2", "3", "4")
+        ship_size_menu.pack(side=Tk.RIGHT)
 
         menu_frame.grid(row=0, column=0, pady=10)
 
@@ -91,7 +117,8 @@ class Application(Tk.Frame):
 
         if self.selected_tool_var.get() == "Set ships":
             logging.info("Setting ship")
-            self.own_board.set_ship(loc[0], loc[1])
+            self.own_board.place_ship(loc[0], loc[1], int(self.selected_ship_size_var.get()), self.selected_direction_var.get())
+            #self.own_board.set_ship(loc[0], loc[1])
         elif self.selected_tool_var.get() == "Set hit":
             logging.info("Setting hit")
             self.own_board.set_hit(loc[0], loc[1])
