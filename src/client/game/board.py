@@ -54,6 +54,14 @@ class Board:
     # PUBLIC
     #
 
+    def clear(self):
+        for slot in self.slots:
+            self.set_slot_state(slot, Slot.EMPTY)
+
+    def reset(self):
+        self.clear()
+        self.state = self.SETTING_SHIPS
+
     def set_hit(self, x, y):
         if self.state == self.SETTING_SHIPS:
             return False

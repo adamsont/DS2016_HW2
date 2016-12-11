@@ -7,8 +7,8 @@ class Slot:
     MISS = 2
     SHIP = 3
 
-    FIELD_SEPARATOR = ':'
-    OBJ_SEPARATOR = '|'
+    FIELD_SEPARATOR = '-'
+    OBJ_SEPARATOR = '#'
 
     def __init__(self, x, y):
         self.x = x

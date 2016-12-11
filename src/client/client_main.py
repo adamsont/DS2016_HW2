@@ -8,6 +8,7 @@ import Queue
 import logging
 from game.board import *
 from PIL import Image, ImageTk
+from client_connection import *
 
 class Application(Tk.Frame):
     #
@@ -17,14 +18,20 @@ class Application(Tk.Frame):
     SETTING_UP = 2
     NOT_CONNECTED = 4
     CONNECTED = 5
-    PLAYING = 6
+    IN_GAME = 6
+    PLAYING = 7
 
     def __init__(self, master=None):
         Tk.Frame.__init__(self, master)
         self.grid()
 
-        self.master.title("Client App as Unknown")
+        self.master.title("BattleShips 2000")
         master.geometry('{}x{}'.format(1100, 600))
+        #
+        # Connection stuff
+        #
+
+        self.connection = ConnectionActor()
 
         #
         # Logic stuff
@@ -39,6 +46,8 @@ class Application(Tk.Frame):
         self.ships_left["Cruiser"] = 3
         self.ships_left["Submarine"] = 3
         self.ships_left["Destroyer"] = 2
+
+        self.set_name = None
 
         #
         # Variables
@@ -62,6 +71,15 @@ class Application(Tk.Frame):
         self.selected_ship_size_var = Tk.StringVar()
         self.selected_ship_size_var.set("1")
 
+        self.new_game_name_var = Tk.StringVar()
+        self.new_game_name_var.set("My game name")
+
+        self.join_game_name_var = Tk.StringVar()
+        self.join_game_name_var.set("")
+
+        self.current_opponent_name_var = Tk.StringVar()
+        self.current_opponent_name_var.set("")
+
         self.own_board = Board()
         self.other_board = Board()
 
@@ -69,9 +87,18 @@ class Application(Tk.Frame):
         #Widgets
         #
 
-        self.ship_menu = None
-        self.setup_ready_button = None
         self.setup_frame = None
+        self.ship_menu = None
+
+        self.connection_frame = None
+
+        self.game_frame = None
+        self.turn_indicator = None
+        self.no_turn_img = ImageTk.PhotoImage(Image.open("../../resources/no_turn.jpg"))
+        self.turn_img = ImageTk.PhotoImage(Image.open("../../resources/turn.jpg"))
+        self.inactive_img = ImageTk.PhotoImage(Image.open("../../resources/inactive.jpg"))
+
+        self.current_opponent_name_label = None
 
         self.create_widgets()
         self.inner_loop()
@@ -89,14 +116,27 @@ class Application(Tk.Frame):
 
     def state_machine(self):
         if self.state == self.SETTING_UP:
+            self.enable_frame(self.setup_frame)
+            self.disable_frame(self.connection_frame)
+            self.disable_frame(self.game_frame)
             logging.info("State: SETTING UP")
+
         elif self.state == self.NOT_CONNECTED:
-            for child in self.setup_frame.winfo_children():
-                child.configure(state='disable')
+            self.enable_frame(self.setup_frame)
+            self.disable_frame(self.connection_frame)
+            self.disable_frame(self.game_frame)
             logging.info("State: NOT CONNECTED")
+
         elif self.state == self.CONNECTED:
+            self.disable_frame(self.setup_frame)
+            self.disable_frame(self.game_frame)
+            self.enable_frame(self.connection_frame)
             logging.info("State: CONNECTED")
-        elif self.state == self.PLAYING:
+
+        elif self.state == self.IN_GAME:
+            self.disable_frame(self.setup_frame)
+            self.enable_frame(self.game_frame)
+            self.disable_frame(self.connection_frame)
             logging.info("State: PLAYING")
 
         self.master.after(500, self.state_machine)
@@ -106,6 +146,12 @@ class Application(Tk.Frame):
         self.setup_frame = self.build_setup_frame(master_frame)
         self.setup_frame.grid(row=0, column=0, pady=10)
 
+        self.connection_frame = self.build_connection_frame(master_frame)
+        self.connection_frame.grid(row=0, column=1, pady=10)
+
+        self.game_frame = self.build_game_frame(master_frame)
+        self.game_frame.grid(row=0, column=2, pady=10)
+
         own_board_frame = self.own_board.init_board(master_frame, True)
         self.own_board.on_click_delegate = self.on_own_board_click
 
@@ -114,24 +160,11 @@ class Application(Tk.Frame):
         own_board_frame.grid(row=1, column=0, padx=10, columnspan=2)
         other_board_frame.grid(row=1, column=2, padx=10, columnspan=2)
 
-        menu_frame = Tk.Frame(master_frame)
-        state_menu = Tk.OptionMenu(menu_frame, self.selected_state_var, "SETTING_UP", "NOT CONNECTED", "CONNECTED", "PLAYING")
-        state_menu.pack(side=Tk.RIGHT)
-
-        tool_menu = Tk.OptionMenu(menu_frame, self.selected_tool_var, "Set ships", "Set hit")
-        tool_menu.pack(side=Tk.RIGHT)
-
-        ship_direction_menu = Tk.OptionMenu(menu_frame, self.selected_direction_var, "N", "W", "S", "E")
-        ship_direction_menu.pack(side=Tk.RIGHT)
-
-        ship_size_menu = Tk.OptionMenu(menu_frame, self.selected_ship_size_var, "1", "2", "3", "4")
-        ship_size_menu.pack(side=Tk.RIGHT)
-
-        menu_frame.grid(row=0, column=2, pady=10)
         master_frame.pack()
 
     def build_setup_frame(self, parent):
         setup_frame = Tk.Frame(parent)
+
         name_label = Tk.Label(setup_frame, text="Nickname:")
         name_box = Tk.Entry(setup_frame, textvariable=self.name_var)
 
@@ -139,17 +172,57 @@ class Application(Tk.Frame):
         self.ship_menu = Tk.OptionMenu(setup_frame, self.selected_ship_var, *self.ships_left.keys())
 
         ship_direction_menu = Tk.OptionMenu(setup_frame, self.selected_direction_var, "N", "W", "S", "E")
+        setup_ready_button = Tk.Button(setup_frame, text="Ready", command=self.setup_ready_button_pressed)
 
-        self.setup_ready_button = Tk.Button(setup_frame, text="Ready", command=self.setup_ready_button_pressed)
-
-        name_label.grid(row=0, column=0, padx=5, pady=5)
-        name_box.grid(row=0, column=1, padx=5, pady=5, columnspan=2)
-        ship_label.grid(row=1, column=0, padx=5, pady=5)
-        self.ship_menu.grid(row=1, column=1, padx=5, pady=5)
-        ship_direction_menu.grid(row=1, column=2, padx=5, pady=5)
-        self.setup_ready_button.grid(row=2, column=0, padx=5, pady=5)
+        name_label.grid(row=0, column=0, padx=5, pady=0)
+        name_box.grid(row=0, column=1, padx=5, pady=0, columnspan=2)
+        ship_label.grid(row=1, column=0, padx=5, pady=0)
+        self.ship_menu.grid(row=1, column=1, padx=5, pady=0)
+        ship_direction_menu.grid(row=1, column=2, padx=5, pady=0)
+        setup_ready_button.grid(row=2, column=0, padx=5, pady=0)
 
         return setup_frame
+
+    def build_game_frame(self, parent):
+        game_frame = Tk.Frame(parent)
+
+        turn_indicator_label = Tk.Label(game_frame, text="Turn?")
+        self.turn_indicator = Tk.Label(game_frame, image=self.inactive_img)
+        self.turn_indicator.image = self.inactive_img
+
+        opponent_label = Tk.Label(game_frame, text="Opponent: ")
+        self.current_opponent_name_label = Tk.Label(game_frame, textvariable=self.current_opponent_name_var)
+
+        next_opponent_button = Tk.Button(game_frame, text="Next", command=self.next_opponent_button_pressed)
+        leave_game_button = Tk.Button(game_frame, text="Leave game", command=self.leave_game_button_pressed)
+
+        turn_indicator_label.grid(row=0, column=0, padx=5, pady=0)
+        self.turn_indicator.grid(row=0, column=1, padx=5, pady=0)
+        opponent_label.grid(row=1, column=0, padx=5, pady=0)
+        self.current_opponent_name_label.grid(row=1, column=1, padx=5, pady=0)
+        next_opponent_button.grid(row=2, column=0, padx=5, pady=0)
+        leave_game_button.grid(row=2, column=1, padx=5, pady=0)
+
+        return game_frame
+
+    def build_connection_frame(self, parent):
+        connection_frame = Tk.Frame(parent)
+
+        new_game_button = Tk.Button(connection_frame, text="New game", command=self.new_game_button_pressed)
+        new_game_name_box = Tk.Entry(connection_frame, textvariable=self.new_game_name_var)
+
+        join_game_button = Tk.Button(connection_frame, text="Join game", command=self.join_game_button_pressed)
+        join_game_name_menu = Tk.OptionMenu(connection_frame, variable=self.join_game_name_var, value="")
+
+        refresh_button = Tk.Button(connection_frame, text="Refresh", command=self.refresh_button_pressed)
+
+        new_game_button.grid(row=0, column=0, padx=5, pady=0)
+        new_game_name_box.grid(row=0, column=1, padx=5, pady=0)
+        join_game_button.grid(row=1, column=0, padx=5, pady=0)
+        join_game_name_menu.grid(row=1, column=1, padx=5, pady=0)
+        refresh_button.grid(row=2, column=0, padx=5, pady=0)
+
+        return connection_frame
 
     def on_own_board_click(self, loc):
         logging.debug("client_main.on_board_click()")
@@ -164,11 +237,15 @@ class Application(Tk.Frame):
 
                     for ship in self.ships_left.keys():
                         self.ship_menu["menu"].add_command(label=ship, command=lambda v=ship: self.selected_ship_var.set(v))
+
+                    if len(self.ships_left) != 0:
+                        self.selected_ship_var.set(self.ships_left.keys()[0])
+                    else:
+                        self.selected_ship_var.set("No more ships to place")
+
             else:
                 self.selected_ship_var.set("No more ships to place")
 
-            if len(self.ships_left) != 0:
-                self.selected_ship_var.set(self.ships_left.keys()[0])
 
         # if self.selected_state_var.get() == "PLAYING":
         #     logging.info("State: PLAYING")
@@ -185,11 +262,61 @@ class Application(Tk.Frame):
         #     logging.info("Setting hit")
         #     self.own_board.set_hit(loc[0], loc[1])
 
+    def reset(self):
+        self.ships_left = dict()
+        self.ships_left["Carrier"] = 5
+        self.ships_left["Battleship"] = 4
+        self.ships_left["Cruiser"] = 3
+        self.ships_left["Submarine"] = 3
+        self.ships_left["Destroyer"] = 2
+
+
+    # Button press handlers
+    #------------------------
+
     def setup_ready_button_pressed(self):
         logging.debug("Setup ready button pressed")
-        if len(self.ships_left) == 0 and self.name_var.get() != "Unknown":
-            logging.info("Confirmed ready")
+        self.set_name = self.name_var.get()
+
+        if len(self.ships_left) == 0 and self.set_name != "Unknown" \
+                and ':' not in self.set_name \
+                and '|' not in self.set_name:
             self.state = self.NOT_CONNECTED
+            packet = IntroductionPacket(self.set_name, self.own_board.get_serialized_board())
+            self.connection.send(packet, self.on_introduction_response)
+
+    def new_game_button_pressed(self):
+        game_name = self.new_game_name_var.get()
+        logging.info("Starting new game: " + game_name)
+
+        if self.state == self.CONNECTED:
+            packet = NewGamePacket(self.set_name, game_name)
+            self.connection.send(packet, self.on_new_game_response)
+
+
+
+    def join_game_button_pressed(self):
+        pass
+
+    def refresh_button_pressed(self):
+        pass
+
+    def next_opponent_button_pressed(self):
+        pass
+
+    def leave_game_button_pressed(self):
+        pass
+
+    def start_game_button_pressed(self):
+        pass
+
+    def disable_frame(self, frame):
+        for child in frame.winfo_children():
+            child.configure(state='disable')
+
+    def enable_frame(self, frame):
+        for child in frame.winfo_children():
+            child.configure(state='normal')
 
     def get_test_state(self):
         str_state = self.selected_state_var.get()
@@ -205,11 +332,29 @@ class Application(Tk.Frame):
             state = self.PLAYING
 
         return state
+
+    def on_introduction_result_handler(self, response):
+        if self.state == self.NOT_CONNECTED:
+            if response == P.RESPOND_OK:
+                self.state = self.CONNECTED
+            else:
+                self.state = self.SETTING_UP
+
+    def on_new_game_response_handler(self, response):
+        if self.state == self.CONNECTED:
+            if response == P.RESPOND_OK:
+                self.state = self.IN_GAME
     #
     # PUBLIC
     #
 
-logging.basicConfig(level=logging.DEBUG)
+    def on_introduction_response(self, response):
+        self.msg_queue.put(lambda: self.on_introduction_result_handler(response))
+
+    def on_new_game_response(self, response):
+        self.msg_queue.put(lambda: self.on_new_game_response_handler(response))
+
+logging.basicConfig(level=logging.INFO)
 root = Tk.Tk()
 
 app = Application(master=root)
