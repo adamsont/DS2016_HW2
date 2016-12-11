@@ -279,14 +279,18 @@ class Application(Tk.Frame):
         self.set_name = self.name_var.get()
 
         if len(self.ships_left) == 0 and self.set_name != "Unknown" \
-                and ':' not in self.set_name \
-                and '|' not in self.set_name:
+                and P.FIELD_SEPARATOR not in self.set_name \
+                and P.HEADER_FIELD_SEPARATOR not in self.set_name:
             self.state = self.NOT_CONNECTED
             packet = IntroductionPacket(self.set_name, self.own_board.get_serialized_board())
             self.connection.send(packet, self.on_introduction_response)
 
     def new_game_button_pressed(self):
         game_name = self.new_game_name_var.get()
+
+        if P.FIELD_SEPARATOR in game_name or P.HEADER_FIELD_SEPARATOR in game_name:
+            return
+
         logging.info("Starting new game: " + game_name)
 
         if self.state == self.CONNECTED:
@@ -299,6 +303,7 @@ class Application(Tk.Frame):
         pass
 
     def refresh_button_pressed(self):
+        self.connection.send()
         pass
 
     def next_opponent_button_pressed(self):

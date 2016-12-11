@@ -12,7 +12,7 @@ class ConnectionActor(Actor):
     def __init__(self):
         Actor.__init__(self)
 
-        self.lobby_connection = SynchronizedRequestConnection("lobby")
+        self.sync_connection = SynchronizedRequestConnection("lobby")
         self.start()
 
     def tick(self):
@@ -30,7 +30,7 @@ class ConnectionActor(Actor):
     #
 
     def send_handler(self, packet, callback):
-        response = self.lobby_connection.send_receive(packet.serialize())
+        response = self.sync_connection.send_receive(packet.serialize())
         callback(response)
 
 class SynchronizedRequestConnection():

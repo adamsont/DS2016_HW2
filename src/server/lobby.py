@@ -17,7 +17,7 @@ class Lobby(SynchronizedRequestHandler):
         self.start()
 
     def handle_request(self, message):
-        packet = self.try_parse_packet(message)
+        packet = try_parse_packet(message)
 
         response = P.RESPOND_NOT_OK
 
@@ -61,20 +61,3 @@ class Lobby(SynchronizedRequestHandler):
                 return True
 
         return False
-
-    def try_parse_packet(self, message):
-        packet = None
-        count = 0
-
-        while True:
-            if packet is not None:
-                break
-            elif count == 0:
-                packet = IntroductionPacket.try_parse(message)
-            elif count == 1:
-                packet = NewGamePacket.try_parse(message)
-            elif count == 2:
-                break
-            count += 1
-
-        return packet
