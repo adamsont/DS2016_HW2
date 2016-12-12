@@ -18,7 +18,7 @@ class SynchronizedRequestHandler():
             logging.info("SynchronizedRequestHandler NONE")
             return
 
-        logging.info("(" + self.queue_name + ") received: " + body)
+        logging.info("(" + props.reply_to + ") received: " + body)
         response = self.handle_request(body)
 
         ch.basic_publish(exchange='',
@@ -29,6 +29,3 @@ class SynchronizedRequestHandler():
 
     def handle_request(self, message):
         raise NotImplementedError
-
-    def start(self):
-        self.channel.start_consuming()

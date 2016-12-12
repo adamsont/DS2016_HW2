@@ -1,13 +1,11 @@
 __author__ = 'Taavi'
 
 from common.utilities.actor import *
+from server_connection import *
+import threading
 
 
-class Game(Actor):
-    def __init__(self, name):
-        Actor.__init__(self)
+class Game():
+    def __init__(self,name):
         self.name = name
-        self.start()
-
-    def tick(self):
-        pass
+        players = []

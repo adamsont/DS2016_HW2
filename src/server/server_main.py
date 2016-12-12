@@ -12,3 +12,4 @@ connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost')
 channel = connection.channel()
 
 lobby = Lobby(channel, "lobby")
+channel.start_consuming()

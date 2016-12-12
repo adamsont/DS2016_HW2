@@ -3,7 +3,7 @@ __author__ = 'Taavi'
 import common.protocol as P
 
 
-def try_parse_packet(self, message):
+def try_parse_packet(message):
         packet = None
         count = 0
 

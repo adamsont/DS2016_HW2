@@ -99,17 +99,18 @@ class Board:
     def set_state(self, state):
         self.state = state
 
-    def clear(self):
-        for slot in self.slots:
-            self.set_slot_state(slot, Slot.EMPTY)
-
-    def parse_set_serialized_board(self, serialized_board):
+    def parse_set_serialized_board(self, serialized_board, secret_ships):
         serialized_slots = serialized_board.split(Slot.OBJ_SEPARATOR)
 
         for serialized_slot in serialized_slots:
             parts = serialized_slot.split(Slot.FIELD_SEPARATOR)
             slot = self.find_slot(int(parts[0]), int(parts[1]))
-            self.set_slot_state(slot, int(parts[2]))
+
+            if secret_ships:
+                if int(parts[2]) != Slot.SHIP:
+                    self.set_slot_state(slot, int(parts[2]))
+                else:
+                    slot.state = int(parts[2])
 
     def get_serialized_board(self):
         serialized_board = ""

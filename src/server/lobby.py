@@ -14,7 +14,6 @@ class Lobby(SynchronizedRequestHandler):
         SynchronizedRequestHandler.__init__(self, channel, queue_name)
         self.players = []
         self.games = []
-        self.start()
 
     def handle_request(self, message):
         packet = try_parse_packet(message)
@@ -60,4 +59,7 @@ class Lobby(SynchronizedRequestHandler):
             if player.name == new_player.name:
                 return True
 
+        return False
+
+    def get_game_index(self, player):
         return False
