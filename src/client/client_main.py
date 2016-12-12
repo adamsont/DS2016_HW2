@@ -91,6 +91,7 @@ class Application(Tk.Frame):
         self.ship_menu = None
 
         self.connection_frame = None
+        self.join_game_name_menu = None
 
         self.game_frame = None
         self.turn_indicator = None
@@ -98,7 +99,7 @@ class Application(Tk.Frame):
         self.turn_img = ImageTk.PhotoImage(Image.open("../../resources/turn.jpg"))
         self.inactive_img = ImageTk.PhotoImage(Image.open("../../resources/inactive.jpg"))
 
-        self.current_opponent_name_label = None
+        self.current_opponent_name_menu = None
 
         self.create_widgets()
         self.inner_loop()
@@ -137,7 +138,7 @@ class Application(Tk.Frame):
             self.disable_frame(self.setup_frame)
             self.enable_frame(self.game_frame)
             self.disable_frame(self.connection_frame)
-            logging.info("State: PLAYING")
+            logging.info("State: IN GAME")
 
         self.master.after(500, self.state_machine)
 
@@ -191,7 +192,7 @@ class Application(Tk.Frame):
         self.turn_indicator.image = self.inactive_img
 
         opponent_label = Tk.Label(game_frame, text="Opponent: ")
-        self.current_opponent_name_label = Tk.Label(game_frame, textvariable=self.current_opponent_name_var)
+        self.current_opponent_name_menu = Tk.OptionMenu(game_frame, variable=self.current_opponent_name_var, value="")
 
         next_opponent_button = Tk.Button(game_frame, text="Next", command=self.next_opponent_button_pressed)
         leave_game_button = Tk.Button(game_frame, text="Leave game", command=self.leave_game_button_pressed)
@@ -199,7 +200,7 @@ class Application(Tk.Frame):
         turn_indicator_label.grid(row=0, column=0, padx=5, pady=0)
         self.turn_indicator.grid(row=0, column=1, padx=5, pady=0)
         opponent_label.grid(row=1, column=0, padx=5, pady=0)
-        self.current_opponent_name_label.grid(row=1, column=1, padx=5, pady=0)
+        self.current_opponent_name_menu.grid(row=1, column=1, padx=5, pady=0)
         next_opponent_button.grid(row=2, column=0, padx=5, pady=0)
         leave_game_button.grid(row=2, column=1, padx=5, pady=0)
 
@@ -212,14 +213,14 @@ class Application(Tk.Frame):
         new_game_name_box = Tk.Entry(connection_frame, textvariable=self.new_game_name_var)
 
         join_game_button = Tk.Button(connection_frame, text="Join game", command=self.join_game_button_pressed)
-        join_game_name_menu = Tk.OptionMenu(connection_frame, variable=self.join_game_name_var, value="")
+        self.join_game_name_menu = Tk.OptionMenu(connection_frame, variable=self.join_game_name_var, value="")
 
         refresh_button = Tk.Button(connection_frame, text="Refresh", command=self.refresh_button_pressed)
 
         new_game_button.grid(row=0, column=0, padx=5, pady=0)
         new_game_name_box.grid(row=0, column=1, padx=5, pady=0)
         join_game_button.grid(row=1, column=0, padx=5, pady=0)
-        join_game_name_menu.grid(row=1, column=1, padx=5, pady=0)
+        self.join_game_name_menu.grid(row=1, column=1, padx=5, pady=0)
         refresh_button.grid(row=2, column=0, padx=5, pady=0)
 
         return connection_frame
@@ -303,8 +304,9 @@ class Application(Tk.Frame):
         pass
 
     def refresh_button_pressed(self):
-        self.connection.send()
-        pass
+        if self.state == self.CONNECTED:
+            packet = RequestGameListPacket(self.set_name)
+            self.connection.send(packet, self.on_respond_game_list)
 
     def next_opponent_button_pressed(self):
         pass
@@ -349,6 +351,23 @@ class Application(Tk.Frame):
         if self.state == self.CONNECTED:
             if response == P.RESPOND_OK:
                 self.state = self.IN_GAME
+
+    def on_respond_game_list_handler(self, response):
+        packet = RespondGameListPacket.try_parse(response)
+
+        if packet is None:
+            logging.info("Bad game list response packet received")
+            return
+
+        game_list = packet.games
+
+        self.join_game_name_menu["menu"].delete(0, "end")
+
+        for game_name in game_list:
+            self.join_game_name_menu["menu"].add_command(label=game_name, command=lambda v=game_name: self.join_game_name_var.set(v))
+
+
+
     #
     # PUBLIC
     #
@@ -358,6 +377,9 @@ class Application(Tk.Frame):
 
     def on_new_game_response(self, response):
         self.msg_queue.put(lambda: self.on_new_game_response_handler(response))
+
+    def on_respond_game_list(self, response):
+        self.msg_queue.put(lambda: self.on_respond_game_list_handler(response))
 
 logging.basicConfig(level=logging.INFO)
 root = Tk.Tk()

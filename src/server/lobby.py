@@ -29,6 +29,10 @@ class Lobby(SynchronizedRequestHandler):
                 response = self.handle_introduction_packet(packet)
             elif packet_type == "NewGamePacket":
                 response = self.handle_new_game_packet(packet)
+            elif packet_type == "RequestGameListPacket":
+                response = self.handle_request_game_list_packet(packet)
+            elif packet_type == "JoinGamePacket":
+                response = self.handle_join_game_packet(packet)
 
         return response
 
@@ -54,6 +58,37 @@ class Lobby(SynchronizedRequestHandler):
 
         return P.RESPOND_OK
 
+    def handle_join_game_packet(self, packet):
+        join_game = None
+
+        for game in self.games:
+            if game.name == packet.game_name:
+                join_game = game
+
+        if join_game is None:
+            return P.RESPOND_NOT_OK
+
+        logging.info("Adding player: " + packet.source + " to game: " + join_game.name)
+
+        player = self.get_player(packet.source)
+
+        if player is None:
+            logging.info("Wtf where did he go?!")
+            return P.RESPOND_NOT_OK
+
+        join_game.players.append(player)
+
+        return P.RESPOND_OK
+
+    def handle_request_game_list_packet(self, packet):
+        game_names = []
+        for game in self.games:
+            game_names.append(game.name)
+
+        packet = RespondGameListPacket(game_names)
+
+        return packet.serialize()
+
     def exists(self, new_player):
         for player in self.players:
             if player.name == new_player.name:
@@ -63,3 +98,10 @@ class Lobby(SynchronizedRequestHandler):
 
     def get_game_index(self, player):
         return False
+
+    def get_player(self, name):
+        for player in self.players:
+            if player.name == name:
+                return player
+
+        return None

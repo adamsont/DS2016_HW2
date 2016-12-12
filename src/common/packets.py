@@ -15,6 +15,12 @@ def try_parse_packet(message):
             elif count == 1:
                 packet = NewGamePacket.try_parse(message)
             elif count == 2:
+                packet = RequestGameListPacket.try_parse(message)
+            elif count == 3:
+                packet = RespondGameListPacket.try_parse(message)
+            elif count == 4:
+                packet = JoinGamePacket.try_parse(message)
+            elif count == 5:
                 break
             count += 1
 
@@ -77,6 +83,34 @@ class NewGamePacket:
         return packet
 
 
+class JoinGamePacket:
+    def __init__(self, source, game_name):
+        self.source = source
+        self.game_name = game_name
+
+    def serialize(self):
+        message = "JOIN GAME" + P.HEADER_FIELD_SEPARATOR
+        message += self.source + P.FIELD_SEPARATOR
+        message += self.game_name
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "JOIN GAME":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = JoinGamePacket(fields[0], fields[1])
+        return packet
+
+
 class RequestGameListPacket:
     def __init__(self, source):
         self.source = source
@@ -113,7 +147,8 @@ class RespondGameListPacket:
         for game_name in self.games:
             message += game_name + P.FIELD_SEPARATOR
 
-        message = message[:-1]
+        if len(self.games) != 0:
+            message = message[:-1]
 
         return message
 
@@ -130,4 +165,61 @@ class RespondGameListPacket:
         fields = parts[1].split(P.FIELD_SEPARATOR)
 
         packet = RespondGameListPacket(fields)
+        return packet
+
+
+class RequestPlayerListPacket():
+    def __init__(self, source):
+        self.source = source
+
+    def serialize(self):
+        message = "REQ PLAYER LIST" + P.HEADER_FIELD_SEPARATOR
+        message += self.source
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "REQ PLAYER LIST":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = RequestPlayerListPacket(fields[0])
+        return packet
+
+
+class RespondPlayerListPacket:
+    def __init__(self, players):
+        self.players = players
+
+    def serialize(self):
+        message = "RESP PLAYER LIST" + P.HEADER_FIELD_SEPARATOR
+
+        for game_name in self.games:
+            message += game_name + P.FIELD_SEPARATOR
+
+        if len(self.games) != 0:
+            message = message[:-1]
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "RESP PLAYER LIST":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = RespondPlayerListPacket(fields)
         return packet
