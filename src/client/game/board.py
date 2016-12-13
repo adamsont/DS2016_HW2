@@ -69,10 +69,10 @@ class Board:
         for slot in self.slots:
             if slot.x == x and slot.y == y:
                 if slot.state == Slot.SHIP:
-                    self.set_picture(x, y, Slot.HIT)
+                    self.set_slot_state(slot, Slot.HIT)
                     return True
                 elif slot.state == Slot.EMPTY:
-                    self.set_picture(x, y, Slot.MISS)
+                    self.set_slot_state(slot, Slot.MISS)
                     return True
                 else:
                     return False
@@ -130,8 +130,6 @@ class Board:
         if self.on_click_delegate is not None:
             self.on_click_delegate(loc)
 
-        print loc
-
     def find_slot(self, x, y):
         for slot in self.slots:
             if slot.x == x and slot.y == y:
@@ -147,7 +145,6 @@ class Board:
         c_slot = self.find_slot(x, y)
         ex_slot = None
 
-        logging.debug("Testing: " + c_slot.to_string())
 
         if c_slot is None:
             return False
@@ -214,10 +211,10 @@ class Board:
         surround_slots.append(self.find_slot(slot.x + 1, slot.y))
         surround_slots.append(self.find_slot(slot.x + 1, slot.y + 1))
 
-        logging.debug("Surrounding slot:" + slot.to_string())
-        for s_slot in surround_slots:
-            if s_slot is not None:
-                logging.debug(s_slot.to_string())
+        #logging.debug("Surrounding slot:" + slot.to_string())
+        #for s_slot in surround_slots:
+            #if s_slot is not None:
+                #logging.debug(s_slot.to_string())
         return surround_slots
 
     #Direction N, E, S, W
@@ -257,7 +254,7 @@ class Board:
 
         if success:
             for ss_slot in ship_slots:
-                logging.debug("Setting to ship: " + ss_slot.to_string())
+                #logging.debug("Setting to ship: " + ss_slot.to_string())
                 self.set_slot_state(ss_slot, Slot.SHIP)
 
         return success

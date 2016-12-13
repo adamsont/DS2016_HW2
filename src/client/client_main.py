@@ -95,6 +95,7 @@ class Application(Tk.Frame):
 
         self.game_frame = None
         self.turn_indicator = None
+        self.start_game_button = None
         self.no_turn_img = ImageTk.PhotoImage(Image.open("../../resources/no_turn.jpg"))
         self.turn_img = ImageTk.PhotoImage(Image.open("../../resources/turn.jpg"))
         self.inactive_img = ImageTk.PhotoImage(Image.open("../../resources/inactive.jpg"))
@@ -138,9 +139,22 @@ class Application(Tk.Frame):
             self.disable_frame(self.setup_frame)
             self.enable_frame(self.game_frame)
             self.disable_frame(self.connection_frame)
+
+            packet = PollGameStartPacket(self.set_name)
+            self.connection.send(packet, self.on_respond_game_start)
             logging.info("State: IN GAME")
 
-        self.master.after(500, self.state_machine)
+        elif self.state == self.PLAYING:
+            self.disable_frame(self.setup_frame)
+            self.enable_frame(self.game_frame)
+            self.disable_frame(self.connection_frame)
+
+            self.own_board.set_state(Board.PLAYING)
+            self.other_board.set_state(Board.PLAYING)
+            self.start_game_button.config(state="disable")
+            logging.info("State: PLAYING")
+
+        self.master.after(100, self.state_machine)
 
     def create_widgets(self):
         master_frame = Tk.Frame(self)
@@ -156,7 +170,8 @@ class Application(Tk.Frame):
         own_board_frame = self.own_board.init_board(master_frame, True)
         self.own_board.on_click_delegate = self.on_own_board_click
 
-        other_board_frame = self.other_board.init_board(master_frame, False)
+        other_board_frame = self.other_board.init_board(master_frame, True)
+        self.other_board.on_click_delegate = self.on_other_board_click
 
         own_board_frame.grid(row=1, column=0, padx=10, columnspan=2)
         other_board_frame.grid(row=1, column=2, padx=10, columnspan=2)
@@ -190,18 +205,22 @@ class Application(Tk.Frame):
         turn_indicator_label = Tk.Label(game_frame, text="Turn?")
         self.turn_indicator = Tk.Label(game_frame, image=self.inactive_img)
         self.turn_indicator.image = self.inactive_img
+        self.start_game_button = Tk.Button(game_frame, text="Start game", command=self.start_game_button_pressed)
 
         opponent_label = Tk.Label(game_frame, text="Opponent: ")
         self.current_opponent_name_menu = Tk.OptionMenu(game_frame, variable=self.current_opponent_name_var, value="")
+        select_opponent_button = Tk.Button(game_frame, text="Select", command=self.select_opponent_button_pressed)
 
-        next_opponent_button = Tk.Button(game_frame, text="Next", command=self.next_opponent_button_pressed)
+        refresh_opponent_button = Tk.Button(game_frame, text="Refresh", command=self.refresh_opponent_button_pressed)
         leave_game_button = Tk.Button(game_frame, text="Leave game", command=self.leave_game_button_pressed)
 
         turn_indicator_label.grid(row=0, column=0, padx=5, pady=0)
         self.turn_indicator.grid(row=0, column=1, padx=5, pady=0)
+        self.start_game_button.grid(row=0, column=2, padx=5, pady=0)
         opponent_label.grid(row=1, column=0, padx=5, pady=0)
         self.current_opponent_name_menu.grid(row=1, column=1, padx=5, pady=0)
-        next_opponent_button.grid(row=2, column=0, padx=5, pady=0)
+        select_opponent_button.grid(row=1, column=2, padx=5, pady=0)
+        refresh_opponent_button.grid(row=2, column=0, padx=5, pady=0)
         leave_game_button.grid(row=2, column=1, padx=5, pady=0)
 
         return game_frame
@@ -263,6 +282,13 @@ class Application(Tk.Frame):
         #     logging.info("Setting hit")
         #     self.own_board.set_hit(loc[0], loc[1])
 
+    def on_other_board_click(self, loc):
+        #TODO! Also if it is not your turn
+        if self.state != self.PLAYING:
+            return
+
+        self.other_board.set_hit(loc[0], loc[1])
+
     def reset(self):
         self.ships_left = dict()
         self.ships_left["Carrier"] = 5
@@ -298,24 +324,35 @@ class Application(Tk.Frame):
             packet = NewGamePacket(self.set_name, game_name)
             self.connection.send(packet, self.on_new_game_response)
 
-
-
     def join_game_button_pressed(self):
-        pass
+        game_name = self.join_game_name_var.get()
+
+        logging.info("Joining game: " + game_name)
+
+        if self.state == self.CONNECTED:
+            packet = JoinGamePacket(self.set_name, game_name)
+            self.connection.send(packet, self.on_join_game_response)
 
     def refresh_button_pressed(self):
         if self.state == self.CONNECTED:
             packet = RequestGameListPacket(self.set_name)
             self.connection.send(packet, self.on_respond_game_list)
 
-    def next_opponent_button_pressed(self):
+    def select_opponent_button_pressed(self):
         pass
+
+    def refresh_opponent_button_pressed(self):
+        if self.state == self.IN_GAME or self.state == self.PLAYING:
+            packet = RequestPlayerListPacket(self.set_name)
+            self.connection.send(packet, self.on_respond_player_list)
 
     def leave_game_button_pressed(self):
         pass
 
     def start_game_button_pressed(self):
-        pass
+        if self.state == self.IN_GAME:
+            packet = StartGamePacket(self.set_name)
+            self.connection.send(packet, self.on_respond_game_start)
 
     def disable_frame(self, frame):
         for child in frame.winfo_children():
@@ -352,6 +389,11 @@ class Application(Tk.Frame):
             if response == P.RESPOND_OK:
                 self.state = self.IN_GAME
 
+    def on_join_game_response_handler(self, response):
+        if self.state == self.CONNECTED:
+            if response == P.RESPOND_OK:
+                self.state = self.IN_GAME
+
     def on_respond_game_list_handler(self, response):
         packet = RespondGameListPacket.try_parse(response)
 
@@ -366,7 +408,23 @@ class Application(Tk.Frame):
         for game_name in game_list:
             self.join_game_name_menu["menu"].add_command(label=game_name, command=lambda v=game_name: self.join_game_name_var.set(v))
 
+    def on_respond_player_list_handler(self, response):
+        packet = RespondPlayerListPacket.try_parse(response)
 
+        if packet is None:
+            logging.info("Bad player list response packet received")
+            return
+
+        player_list = packet.players
+
+        self.current_opponent_name_menu["menu"].delete(0, "end")
+
+        for player_name in player_list:
+            self.current_opponent_name_menu["menu"].add_command(label=player_name, command=lambda v=player_name: self.current_opponent_name_var.set(v))
+
+    def on_respond_game_start_handler(self, response):
+        if self.state == self.IN_GAME and response == P.RESPOND_OK:
+            self.state = self.PLAYING
 
     #
     # PUBLIC
@@ -378,8 +436,17 @@ class Application(Tk.Frame):
     def on_new_game_response(self, response):
         self.msg_queue.put(lambda: self.on_new_game_response_handler(response))
 
+    def on_join_game_response(self, response):
+        self.msg_queue.put(lambda: self.on_join_game_response_handler(response))
+
     def on_respond_game_list(self, response):
         self.msg_queue.put(lambda: self.on_respond_game_list_handler(response))
+
+    def on_respond_player_list(self, response):
+        self.msg_queue.put(lambda: self.on_respond_player_list_handler(response))
+
+    def on_respond_game_start(self, response):
+        self.msg_queue.put(lambda: self.on_respond_game_start_handler(response))
 
 logging.basicConfig(level=logging.INFO)
 root = Tk.Tk()

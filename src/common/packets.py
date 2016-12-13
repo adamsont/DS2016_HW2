@@ -21,6 +21,14 @@ def try_parse_packet(message):
             elif count == 4:
                 packet = JoinGamePacket.try_parse(message)
             elif count == 5:
+                packet = RequestPlayerListPacket.try_parse(message)
+            elif count == 6:
+                packet = RespondPlayerListPacket.try_parse(message)
+            elif count == 7:
+                packet = StartGamePacket.try_parse(message)
+            elif count == 8:
+                packet = PollGameStartPacket.try_parse(message)
+            elif count == 9:
                 break
             count += 1
 
@@ -201,10 +209,10 @@ class RespondPlayerListPacket:
     def serialize(self):
         message = "RESP PLAYER LIST" + P.HEADER_FIELD_SEPARATOR
 
-        for game_name in self.games:
-            message += game_name + P.FIELD_SEPARATOR
+        for player_name in self.players:
+            message += player_name + P.FIELD_SEPARATOR
 
-        if len(self.games) != 0:
+        if len(self.players) != 0:
             message = message[:-1]
 
         return message
@@ -222,4 +230,56 @@ class RespondPlayerListPacket:
         fields = parts[1].split(P.FIELD_SEPARATOR)
 
         packet = RespondPlayerListPacket(fields)
+        return packet
+
+
+class StartGamePacket():
+    def __init__(self, source):
+        self.source = source
+
+    def serialize(self):
+        message = "START GAME" + P.HEADER_FIELD_SEPARATOR
+        message += self.source
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "START GAME":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = StartGamePacket(fields[0])
+        return packet
+
+
+class PollGameStartPacket():
+    def __init__(self, source):
+        self.source = source
+
+    def serialize(self):
+        message = "POLL START" + P.HEADER_FIELD_SEPARATOR
+        message += self.source
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "POLL START":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = PollGameStartPacket(fields[0])
         return packet
