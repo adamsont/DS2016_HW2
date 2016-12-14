@@ -3,12 +3,11 @@ __author__ = 'Taavi'
 
 __author__ = 'Taavi'
 
-import Tkinter as Tk
-import Queue
-import logging
-from game.board import *
 from PIL import Image, ImageTk
+
+from common.game.board import *
 from client_connection import *
+
 
 class Application(Tk.Frame):
     #
@@ -39,6 +38,8 @@ class Application(Tk.Frame):
 
         self.msg_queue = Queue.Queue()
         self.state = self.SETTING_UP
+        self.is_my_turn = False
+        self.selected_opponent = None
 
         self.ships_left = dict()
         self.ships_left["Carrier"] = 5
@@ -152,6 +153,9 @@ class Application(Tk.Frame):
             self.own_board.set_state(Board.PLAYING)
             self.other_board.set_state(Board.PLAYING)
             self.start_game_button.config(state="disable")
+
+            packet = PollRefreshPacket(self.set_name)
+            self.connection.send(packet, self.on_respond_refresh)
             logging.info("State: PLAYING")
 
         self.master.after(100, self.state_machine)
@@ -234,7 +238,7 @@ class Application(Tk.Frame):
         join_game_button = Tk.Button(connection_frame, text="Join game", command=self.join_game_button_pressed)
         self.join_game_name_menu = Tk.OptionMenu(connection_frame, variable=self.join_game_name_var, value="")
 
-        refresh_button = Tk.Button(connection_frame, text="Refresh", command=self.refresh_button_pressed)
+        refresh_button = Tk.Button(connection_frame, text="Refresh", command=self.refresh_game_list_button_pressed)
 
         new_game_button.grid(row=0, column=0, padx=5, pady=0)
         new_game_name_box.grid(row=0, column=1, padx=5, pady=0)
@@ -283,11 +287,17 @@ class Application(Tk.Frame):
         #     self.own_board.set_hit(loc[0], loc[1])
 
     def on_other_board_click(self, loc):
-        #TODO! Also if it is not your turn
-        if self.state != self.PLAYING:
+        if self.state != self.PLAYING or not self.is_my_turn:
+            return
+
+        if self.selected_opponent is None:
             return
 
         self.other_board.set_hit(loc[0], loc[1])
+        packet = ShootPacket(self.set_name, self.selected_opponent, self.other_board.get_serialized_board())
+        self.connection.send(packet, self.on_shoot_packet_response)
+
+        self.selected_opponent = None
 
     def reset(self):
         self.ships_left = dict()
@@ -307,7 +317,8 @@ class Application(Tk.Frame):
 
         if len(self.ships_left) == 0 and self.set_name != "Unknown" \
                 and P.FIELD_SEPARATOR not in self.set_name \
-                and P.HEADER_FIELD_SEPARATOR not in self.set_name:
+                and P.HEADER_SEPARATOR not in self.set_name \
+                and self.set_name != "":
             self.state = self.NOT_CONNECTED
             packet = IntroductionPacket(self.set_name, self.own_board.get_serialized_board())
             self.connection.send(packet, self.on_introduction_response)
@@ -315,7 +326,7 @@ class Application(Tk.Frame):
     def new_game_button_pressed(self):
         game_name = self.new_game_name_var.get()
 
-        if P.FIELD_SEPARATOR in game_name or P.HEADER_FIELD_SEPARATOR in game_name:
+        if P.FIELD_SEPARATOR in game_name or P.HEADER_SEPARATOR in game_name:
             return
 
         logging.info("Starting new game: " + game_name)
@@ -333,13 +344,20 @@ class Application(Tk.Frame):
             packet = JoinGamePacket(self.set_name, game_name)
             self.connection.send(packet, self.on_join_game_response)
 
-    def refresh_button_pressed(self):
+    def refresh_game_list_button_pressed(self):
         if self.state == self.CONNECTED:
             packet = RequestGameListPacket(self.set_name)
             self.connection.send(packet, self.on_respond_game_list)
 
     def select_opponent_button_pressed(self):
-        pass
+        if self.state == self.PLAYING:
+            self.selected_opponent = self.current_opponent_name_var.get()
+
+            if self.selected_opponent == "":
+                return
+
+            packet = RequestPlayerBoardPacket(self.selected_opponent)
+            self.connection.send(packet, self.on_player_board_response)
 
     def refresh_opponent_button_pressed(self):
         if self.state == self.IN_GAME or self.state == self.PLAYING:
@@ -426,6 +444,37 @@ class Application(Tk.Frame):
         if self.state == self.IN_GAME and response == P.RESPOND_OK:
             self.state = self.PLAYING
 
+    def on_respond_refresh_handler(self, response):
+        packet = RespondRefreshPacket.try_parse(response)
+
+        if packet is None:
+            logging.info("Bad refresh response packet received")
+            return
+
+        self.own_board.parse_set_serialized_board(packet.current_serialized_board, False)
+
+        if packet.is_turn:
+            self.is_my_turn = True
+            self.turn_indicator.config(image=self.turn_img)
+        elif not packet.is_turn:
+            self.is_my_turn = False
+            self.turn_indicator.config(image=self.no_turn_img)
+        else:
+            self.is_my_turn = False
+            self.turn_indicator.config(image=self.inactive_img)
+
+    def on_player_board_response_handler(self, response):
+        packet = RespondPlayerBoardPacket.try_parse(response)
+
+        if packet is None:
+            logging.info("Bad player board response packet received")
+            return
+
+        self.other_board.parse_set_serialized_board(packet.board, True)
+
+    def on_shoot_packet_response_handler(self, response):
+        pass
+
     #
     # PUBLIC
     #
@@ -447,6 +496,15 @@ class Application(Tk.Frame):
 
     def on_respond_game_start(self, response):
         self.msg_queue.put(lambda: self.on_respond_game_start_handler(response))
+
+    def on_respond_refresh(self, response):
+        self.msg_queue.put(lambda: self.on_respond_refresh_handler(response))
+
+    def on_player_board_response(self, response):
+        self.msg_queue.put(lambda: self.on_player_board_response_handler(response))
+
+    def on_shoot_packet_response(self, response):
+        self.msg_queue.put(lambda: self.on_shoot_packet_response_handler(response))
 
 logging.basicConfig(level=logging.INFO)
 root = Tk.Tk()

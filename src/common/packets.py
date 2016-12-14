@@ -1,6 +1,7 @@
 __author__ = 'Taavi'
 
 import common.protocol as P
+import logging
 
 
 def try_parse_packet(message):
@@ -29,6 +30,17 @@ def try_parse_packet(message):
             elif count == 8:
                 packet = PollGameStartPacket.try_parse(message)
             elif count == 9:
+                packet = RespondRefreshPacket.try_parse(message)
+            elif count == 10:
+                packet = PollRefreshPacket.try_parse(message)
+            elif count == 11:
+                packet = RequestPlayerBoardPacket.try_parse(message)
+            elif count == 12:
+                packet == RespondPlayerBoardPacket.try_parse(message)
+            elif count == 13:
+                packet = ShootPacket.try_parse(message)
+            elif count == 14:
+                logging.info("Try parse failed to recognize any packet")
                 break
             count += 1
 
@@ -41,7 +53,7 @@ class IntroductionPacket:
         self.serialized_board = serialized_board
 
     def serialize(self):
-        message = "INTRO" + P.HEADER_FIELD_SEPARATOR
+        message = "INTRO" + P.HEADER_SEPARATOR
         message += self.source + P.FIELD_SEPARATOR
         message += self.serialized_board
 
@@ -49,7 +61,7 @@ class IntroductionPacket:
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -69,7 +81,7 @@ class NewGamePacket:
         self.game_name = game_name
 
     def serialize(self):
-        message = "NEW GAME" + P.HEADER_FIELD_SEPARATOR
+        message = "NEW GAME" + P.HEADER_SEPARATOR
         message += self.source + P.FIELD_SEPARATOR
         message += self.game_name
 
@@ -77,7 +89,7 @@ class NewGamePacket:
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -97,7 +109,7 @@ class JoinGamePacket:
         self.game_name = game_name
 
     def serialize(self):
-        message = "JOIN GAME" + P.HEADER_FIELD_SEPARATOR
+        message = "JOIN GAME" + P.HEADER_SEPARATOR
         message += self.source + P.FIELD_SEPARATOR
         message += self.game_name
 
@@ -105,7 +117,7 @@ class JoinGamePacket:
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -124,14 +136,14 @@ class RequestGameListPacket:
         self.source = source
 
     def serialize(self):
-        message = "REQ GAME LIST" + P.HEADER_FIELD_SEPARATOR
+        message = "REQ GAME LIST" + P.HEADER_SEPARATOR
         message += self.source
 
         return message
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -150,7 +162,7 @@ class RespondGameListPacket:
         self.games = games
 
     def serialize(self):
-        message = "RESP GAME LIST" + P.HEADER_FIELD_SEPARATOR
+        message = "RESP GAME LIST" + P.HEADER_SEPARATOR
 
         for game_name in self.games:
             message += game_name + P.FIELD_SEPARATOR
@@ -162,7 +174,7 @@ class RespondGameListPacket:
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -181,14 +193,14 @@ class RequestPlayerListPacket():
         self.source = source
 
     def serialize(self):
-        message = "REQ PLAYER LIST" + P.HEADER_FIELD_SEPARATOR
+        message = "REQ PLAYER LIST" + P.HEADER_SEPARATOR
         message += self.source
 
         return message
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -207,7 +219,7 @@ class RespondPlayerListPacket:
         self.players = players
 
     def serialize(self):
-        message = "RESP PLAYER LIST" + P.HEADER_FIELD_SEPARATOR
+        message = "RESP PLAYER LIST" + P.HEADER_SEPARATOR
 
         for player_name in self.players:
             message += player_name + P.FIELD_SEPARATOR
@@ -219,7 +231,7 @@ class RespondPlayerListPacket:
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -238,14 +250,14 @@ class StartGamePacket():
         self.source = source
 
     def serialize(self):
-        message = "START GAME" + P.HEADER_FIELD_SEPARATOR
+        message = "START GAME" + P.HEADER_SEPARATOR
         message += self.source
 
         return message
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -264,14 +276,14 @@ class PollGameStartPacket():
         self.source = source
 
     def serialize(self):
-        message = "POLL START" + P.HEADER_FIELD_SEPARATOR
+        message = "POLL START" + P.HEADER_SEPARATOR
         message += self.source
 
         return message
 
     @staticmethod
     def try_parse(message):
-        parts = message.split(P.HEADER_FIELD_SEPARATOR)
+        parts = message.split(P.HEADER_SEPARATOR)
 
         if len(parts) != 2:
             return None
@@ -282,4 +294,145 @@ class PollGameStartPacket():
         fields = parts[1].split(P.FIELD_SEPARATOR)
 
         packet = PollGameStartPacket(fields[0])
+        return packet
+
+
+class PollRefreshPacket():
+    def __init__(self, source):
+        self.source = source
+
+    def serialize(self):
+        message = "POLL REFRESH" + P.HEADER_SEPARATOR
+        message += self.source
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "POLL REFRESH":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = PollRefreshPacket(fields[0])
+        return packet
+
+
+class RespondRefreshPacket():
+    def __init__(self, is_turn, current_board):
+        self.is_turn = is_turn
+        self.current_serialized_board = current_board
+
+    def serialize(self):
+        message = "RESP REFRESH" + P.HEADER_SEPARATOR
+        message += str(self.is_turn) + P.FIELD_SEPARATOR
+        message += self.current_serialized_board
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "RESP REFRESH":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        bool_value = False
+
+        if fields[0] == "True":
+            bool_value = True
+
+        packet = RespondRefreshPacket(bool_value, fields[1])
+        return packet
+
+
+class ShootPacket():
+    def __init__(self, source, target, result_board):
+        self.source = source
+        self.target = target
+        self.result_board = result_board
+
+    def serialize(self):
+        message = "SHOOT" + P.HEADER_SEPARATOR
+        message += self.source + P.FIELD_SEPARATOR
+        message += self.target + P.FIELD_SEPARATOR
+        message += self.result_board
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "SHOOT":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = ShootPacket(fields[0], fields[1], fields[2])
+        return packet
+
+
+class RequestPlayerBoardPacket():
+    def __init__(self, player):
+        self.player = player
+
+    def serialize(self):
+        message = "REQ PLAYER BOARD" + P.HEADER_SEPARATOR
+        message += self.player
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "REQ PLAYER BOARD":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = RequestPlayerBoardPacket(fields[0])
+        return packet
+
+
+class RespondPlayerBoardPacket():
+    def __init__(self, board):
+        self.board = board
+
+    def serialize(self):
+        message = "RESP PLAYER BOARD" + P.HEADER_SEPARATOR
+        message += self.board
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "RESP PLAYER BOARD":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = RespondPlayerBoardPacket(fields[0])
         return packet

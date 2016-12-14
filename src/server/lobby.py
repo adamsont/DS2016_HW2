@@ -23,8 +23,6 @@ class Lobby(SynchronizedRequestHandler):
         if packet is not None:
             packet_type = packet.__class__.__name__
 
-            logging.info("Received: " + packet_type)
-
             if packet_type == 'IntroductionPacket':
                 response = self.handle_introduction_packet(packet)
             elif packet_type == "NewGamePacket":
@@ -39,6 +37,14 @@ class Lobby(SynchronizedRequestHandler):
                 response = self.handle_start_game_packet(packet)
             elif packet_type == "PollGameStartPacket":
                 response = self.handle_poll_game_start_packet(packet)
+            elif packet_type == "PollRefreshPacket":
+                response = self.handle_poll_refresh_packet(packet)
+            elif packet_type == "RequestPlayerBoardPacket":
+                response = self.handle_request_player_board_packet(packet)
+            elif packet_type == "ShootPacket":
+                response = self.handle_shoot_packet(packet)
+            else:
+                logging.info("Unknown packet received")
 
         return response
 
@@ -104,7 +110,7 @@ class Lobby(SynchronizedRequestHandler):
 
     def handle_request_player_list_packet(self, packet):
         source = packet.source
-        game = self.get_game_by_player(source)
+        game = self.get_game_by_player_name(source)
 
         if game is None:
             logging.info("Requested player list by player not in any games")
@@ -124,7 +130,7 @@ class Lobby(SynchronizedRequestHandler):
 
     def handle_start_game_packet(self, packet):
         source = packet.source
-        game = self.get_game_by_player(source)
+        game = self.get_game_by_player_name(source)
         player = self.get_player_by_name(source)
 
         if game is None:
@@ -148,12 +154,61 @@ class Lobby(SynchronizedRequestHandler):
 
     def handle_poll_game_start_packet(self, packet):
         source = packet.source
-        game = self.get_game_by_player(source)
+        game = self.get_game_by_player_name(source)
+
+        if game is None:
+            logging.info("Player not in game to poll start")
+            return
 
         if game.ongoing:
             return P.RESPOND_OK
         else:
             return P.RESPOND_NOT_OK
+
+    def handle_poll_refresh_packet(self, packet):
+        source = packet.source
+        player = self.get_player_by_name(source)
+        game = self.get_game_by_player_name(source)
+
+        if game is None:
+            logging.info("Player not in game to poll refresh")
+            return
+
+        if game.current_turn == game.players.index(player):
+            packet = RespondRefreshPacket(True, player.board)
+            return packet.serialize()
+        else:
+            packet = RespondRefreshPacket(False, player.board)
+            return packet.serialize()
+
+    def handle_request_player_board_packet(self, packet):
+        player = self.get_player_by_name(packet.player)
+        packet = RespondPlayerBoardPacket(player.board)
+        return packet.serialize()
+
+    def handle_shoot_packet(self, packet):
+        source = packet.source
+        target = packet.target
+
+        source_player = self.get_player_by_name(source)
+        target_player = self.get_player_by_name(target)
+        result_board = packet.result_board
+
+        game = self.get_game_by_player_name(source)
+        game1 = self.get_game_by_player_name(target)
+
+        if game != game1:
+            logging.info("Wtf, missile from other dimension")
+            return P.RESPOND_NOT_OK
+
+        if game.current_turn != game.players.index(source_player):
+            logging.info("Cheater shooting at wrong turn")
+            return P.RESPOND_NOT_OK
+
+        target_player.board = result_board
+        game.increment_turn()
+
+        return P.RESPOND_OK
 
     def exists(self, new_player):
         for player in self.players:
@@ -162,7 +217,7 @@ class Lobby(SynchronizedRequestHandler):
 
         return False
 
-    def get_game_by_player(self, player_name):
+    def get_game_by_player_name(self, player_name):
         for game in self.games:
             for player in game.players:
                 if player.name == player_name:

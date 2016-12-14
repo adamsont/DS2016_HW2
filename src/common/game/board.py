@@ -1,10 +1,12 @@
 __author__ = 'Taavi'
 
 import Tkinter as Tk
-from PIL import Image, ImageTk
-from slot import *
 import logging
 import copy
+
+from PIL import Image, ImageTk
+
+from common.game.slot import *
 
 
 class Ship:

@@ -18,7 +18,6 @@ class SynchronizedRequestHandler():
             logging.info("SynchronizedRequestHandler NONE")
             return
 
-        logging.info("(" + props.reply_to + ") received: " + body)
         response = self.handle_request(body)
 
         ch.basic_publish(exchange='',

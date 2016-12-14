@@ -3,7 +3,7 @@ __author__ = 'Taavi'
 __author__ = 'Taavi'
 
 
-HEADER_FIELD_SEPARATOR = '|'
+HEADER_SEPARATOR = '|'
 FIELD_SEPARATOR = ':'
 RESPOND_OK = "OK"
 RESPOND_NOT_OK = "NOT_OK"

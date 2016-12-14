@@ -12,7 +12,7 @@ class Game():
         self.players = []
         self.current_turn = 0
 
-    def move_next_turn(self):
+    def increment_turn(self):
         self.current_turn += 1
 
         if self.current_turn > len(self.players) - 1:
