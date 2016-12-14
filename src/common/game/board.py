@@ -103,6 +103,9 @@ class Board:
 
     def parse_set_serialized_board(self, serialized_board, secret_ships):
         serialized_slots = serialized_board.split(Slot.OBJ_SEPARATOR)
+        logging.info("Ships before clear: " + str(self.count_ships()))
+        self.clear()
+        logging.info("Ships after clear: " + str(self.count_ships()))
 
         for serialized_slot in serialized_slots:
             parts = serialized_slot.split(Slot.FIELD_SEPARATOR)
@@ -113,6 +116,10 @@ class Board:
                     self.set_slot_state(slot, int(parts[2]))
                 else:
                     slot.state = int(parts[2])
+            else:
+                self.set_slot_state(slot, int(parts[2]))
+
+        logging.info("Ships after parse: " + str(self.count_ships()))
 
     def get_serialized_board(self):
         serialized_board = ""
@@ -122,6 +129,12 @@ class Board:
 
         serialized_board = serialized_board[:-1]
         return serialized_board
+
+    def is_over(self):
+        for slot in self.slots:
+            if slot.state == Slot.SHIP:
+                return False
+        return True
     #
     # PRIVATE
     #
@@ -141,7 +154,7 @@ class Board:
 
     def set_slot_state(self, slot, state):
         slot.state = state
-        self.set_picture(slot.x, slot.y, slot.state)
+        self.set_picture(slot.x, slot.y, state)
 
     def try_set_ship(self, x, y, direction, is_first):
         c_slot = self.find_slot(x, y)
@@ -191,15 +204,17 @@ class Board:
         #self.set_slot_state(c_slot, Slot.SHIP)
         return True
 
-    def set_picture(self, x, y, condition):
+    def set_picture(self, x, y, state):
         for label in self.label_LUT.keys():
             if self.label_LUT[label][0] == x and self.label_LUT[label][1] == y:
-                if condition == Slot.HIT:
+                if state == Slot.HIT:
                     label.config(image=self.hit_img)
-                elif condition == Slot.MISS:
+                elif state == Slot.MISS:
                     label.config(image=self.miss_img)
-                elif condition == Slot.SHIP:
+                elif state == Slot.SHIP:
                     label.config(image=self.ship_img)
+                elif state == Slot.EMPTY:
+                    label.config(image=self.empty_img)
 
     def get_surrounding_slots(self, slot):
         surround_slots = []
@@ -261,3 +276,14 @@ class Board:
 
         return success
 
+    def count_ships(self):
+        count = 0
+        for slot in self.slots:
+            if slot.state == Slot.SHIP:
+                count += 1
+
+        return count
+
+    def refresh(self):
+        for slot in self.slots:
+            self.set_picture(slot.x, slot.y, slot.state)

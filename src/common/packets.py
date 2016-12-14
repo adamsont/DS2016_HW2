@@ -40,6 +40,8 @@ def try_parse_packet(message):
             elif count == 13:
                 packet = ShootPacket.try_parse(message)
             elif count == 14:
+                packet = GameOverPacket.try_parse(message)
+            elif count == 15:
                 logging.info("Try parse failed to recognize any packet")
                 break
             count += 1
@@ -357,16 +359,18 @@ class RespondRefreshPacket():
 
 
 class ShootPacket():
-    def __init__(self, source, target, result_board):
+    def __init__(self, source, target, result_board, target_destroyed):
         self.source = source
         self.target = target
         self.result_board = result_board
+        self.target_destroyed = target_destroyed
 
     def serialize(self):
         message = "SHOOT" + P.HEADER_SEPARATOR
         message += self.source + P.FIELD_SEPARATOR
         message += self.target + P.FIELD_SEPARATOR
-        message += self.result_board
+        message += self.result_board + P.FIELD_SEPARATOR
+        message += str(self.target_destroyed)
 
         return message
 
@@ -382,7 +386,11 @@ class ShootPacket():
 
         fields = parts[1].split(P.FIELD_SEPARATOR)
 
-        packet = ShootPacket(fields[0], fields[1], fields[2])
+        bool_value = False
+        if fields[3] == "True":
+            bool_value = True
+
+        packet = ShootPacket(fields[0], fields[1], fields[2], bool_value)
         return packet
 
 
@@ -435,4 +443,37 @@ class RespondPlayerBoardPacket():
         fields = parts[1].split(P.FIELD_SEPARATOR)
 
         packet = RespondPlayerBoardPacket(fields[0])
+        return packet
+
+
+class GameOverPacket():
+    def __init__(self, did_i_win, final_board):
+        self.did_i_win = did_i_win
+        self.final_board = final_board
+
+    def serialize(self):
+        message = "GAME_OVER" + P.HEADER_SEPARATOR
+        message += str(self.did_i_win) + P.FIELD_SEPARATOR
+        message += self.final_board
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "GAME_OVER":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        bool_value = False
+
+        if fields[0] == "True":
+            bool_value = True
+
+        packet = GameOverPacket(bool_value, fields[1])
         return packet

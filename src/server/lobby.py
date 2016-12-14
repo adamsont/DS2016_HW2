@@ -55,7 +55,13 @@ class Lobby(SynchronizedRequestHandler):
             logging.info("New player in lobby: " + player.name)
             self.players.append(player)
             return P.RESPOND_OK
+
+        elif self.player_in_game(player):
+            logging.info("Player " + player.name + " came back")
+            return P.RESPOND_OK
+
         else:
+            logging.info("Declining player " + player.name + " to join")
             return P.RESPOND_NOT_OK
 
     def handle_new_game_packet(self, packet):
@@ -94,8 +100,9 @@ class Lobby(SynchronizedRequestHandler):
             logging.info("Wtf where did he go?!")
             return P.RESPOND_NOT_OK
 
-        join_game.players.append(player)
-        logging.info("Game " + join_game.name + " currently has " + str(len(join_game.players)) + " players")
+        if player not in join_game.players:
+            join_game.players.append(player)
+            logging.info("Game " + join_game.name + " currently has " + str(len(join_game.players)) + " players")
 
         return P.RESPOND_OK
 
@@ -158,7 +165,7 @@ class Lobby(SynchronizedRequestHandler):
 
         if game is None:
             logging.info("Player not in game to poll start")
-            return
+            return P.RESPOND_NOT_OK
 
         if game.ongoing:
             return P.RESPOND_OK
@@ -166,13 +173,14 @@ class Lobby(SynchronizedRequestHandler):
             return P.RESPOND_NOT_OK
 
     def handle_poll_refresh_packet(self, packet):
+        logging.info("Poll refresh from " + packet.source)
         source = packet.source
         player = self.get_player_by_name(source)
         game = self.get_game_by_player_name(source)
 
         if game is None:
-            logging.info("Player not in game to poll refresh")
-            return
+            response_packet = GameOverPacket(False, player.board)
+            return response_packet.serialize()
 
         if game.current_turn == game.players.index(player):
             packet = RespondRefreshPacket(True, player.board)
@@ -192,6 +200,13 @@ class Lobby(SynchronizedRequestHandler):
 
         source_player = self.get_player_by_name(source)
         target_player = self.get_player_by_name(target)
+
+        if target_player is None:
+            logging.info("Shooting a player that has already left")
+            packet = RequestPlayerListPacket(source)
+            response = self.handle_request_player_list_packet(packet)
+            return response
+
         result_board = packet.result_board
 
         game = self.get_game_by_player_name(source)
@@ -206,6 +221,15 @@ class Lobby(SynchronizedRequestHandler):
             return P.RESPOND_NOT_OK
 
         target_player.board = result_board
+
+        if packet.target_destroyed:
+            game.players.remove(target_player)
+
+        if len(game.players) == 1:
+            packet = GameOverPacket(True, source_player.board)
+            self.games.remove(game)
+            return packet.serialize()
+
         game.increment_turn()
 
         return P.RESPOND_OK
@@ -231,3 +255,11 @@ class Lobby(SynchronizedRequestHandler):
                 return player
 
         return None
+
+    def player_in_game(self, c_player):
+        for game in self.games:
+            for player in game.players:
+                if player.name == c_player.name:
+                    return True
+
+        return False

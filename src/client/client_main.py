@@ -4,7 +4,7 @@ __author__ = 'Taavi'
 __author__ = 'Taavi'
 
 from PIL import Image, ImageTk
-
+import sys
 from common.game.board import *
 from client_connection import *
 
@@ -122,6 +122,10 @@ class Application(Tk.Frame):
             self.enable_frame(self.setup_frame)
             self.disable_frame(self.connection_frame)
             self.disable_frame(self.game_frame)
+
+            self.own_board.set_state(Board.SETTING_SHIPS)
+            self.other_board.set_state(Board.SETTING_SHIPS)
+
             logging.info("State: SETTING UP")
 
         elif self.state == self.NOT_CONNECTED:
@@ -294,10 +298,8 @@ class Application(Tk.Frame):
             return
 
         self.other_board.set_hit(loc[0], loc[1])
-        packet = ShootPacket(self.set_name, self.selected_opponent, self.other_board.get_serialized_board())
+        packet = ShootPacket(self.set_name, self.selected_opponent, self.other_board.get_serialized_board(), self.other_board.is_over())
         self.connection.send(packet, self.on_shoot_packet_response)
-
-        self.selected_opponent = None
 
     def reset(self):
         self.ships_left = dict()
@@ -439,31 +441,41 @@ class Application(Tk.Frame):
 
         for player_name in player_list:
             self.current_opponent_name_menu["menu"].add_command(label=player_name, command=lambda v=player_name: self.current_opponent_name_var.set(v))
+            self.current_opponent_name_var.set(player_name)
 
     def on_respond_game_start_handler(self, response):
         if self.state == self.IN_GAME and response == P.RESPOND_OK:
             self.state = self.PLAYING
 
     def on_respond_refresh_handler(self, response):
-        packet = RespondRefreshPacket.try_parse(response)
+        packet = try_parse_packet(response)
+        packet_type = packet.__class__.__name__
 
-        if packet is None:
-            logging.info("Bad refresh response packet received")
-            return
+        if packet_type == "RespondRefreshPacket":
+            self.own_board.parse_set_serialized_board(packet.current_serialized_board, False)
 
-        self.own_board.parse_set_serialized_board(packet.current_serialized_board, False)
+            if packet.is_turn:
+                self.is_my_turn = True
+                self.turn_indicator.config(image=self.turn_img)
+            elif not packet.is_turn:
+                self.is_my_turn = False
+                self.turn_indicator.config(image=self.no_turn_img)
+            else:
+                self.is_my_turn = False
+                self.turn_indicator.config(image=self.inactive_img)
 
-        if packet.is_turn:
-            self.is_my_turn = True
-            self.turn_indicator.config(image=self.turn_img)
-        elif not packet.is_turn:
-            self.is_my_turn = False
-            self.turn_indicator.config(image=self.no_turn_img)
-        else:
-            self.is_my_turn = False
-            self.turn_indicator.config(image=self.inactive_img)
+        elif packet_type == "GameOverPacket":
+            if packet.did_i_win:
+                logging.info("I AM THE CHAMPION!")
+            else:
+                logging.info("Lost?! Again?!")
+
+            self.own_board.clear()
+            self.state = self.SETTING_UP
+
 
     def on_player_board_response_handler(self, response):
+
         packet = RespondPlayerBoardPacket.try_parse(response)
 
         if packet is None:
@@ -473,7 +485,22 @@ class Application(Tk.Frame):
         self.other_board.parse_set_serialized_board(packet.board, True)
 
     def on_shoot_packet_response_handler(self, response):
-        pass
+        packet = try_parse_packet(response)
+        packet_type = packet.__class__.__name__
+
+        if packet_type == "RespondPlayerListPacket":
+            self.on_respond_game_list_handler(response)
+            self.selected_opponent = None
+            self.other_board.clear()
+
+        elif packet_type == "GameOverPacket":
+            if packet.did_i_win:
+                logging.info("I AM THE CHAMPION!")
+            else:
+                logging.info("Lost?! Again?!")
+
+            self.own_board.clear()
+            self.state = self.SETTING_UP
 
     #
     # PUBLIC
@@ -512,5 +539,7 @@ root = Tk.Tk()
 app = Application(master=root)
 
 app.mainloop()
+logging.info("Quitting")
+sys.exit()
 
 
