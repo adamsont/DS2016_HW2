@@ -7,6 +7,9 @@ from common.packets import *
 from player import *
 from game import *
 
+# I started planning it a bit differently, so that lobby only accepts incoming players and so on...
+# Well, things went differently and "lobby" as a master for everything is much easier approach
+# Now this class hols states ov EVERYTHING and does EVERYTHING
 
 class Lobby(SynchronizedRequestHandler):
 
