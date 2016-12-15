@@ -7,6 +7,7 @@ from PIL import Image, ImageTk
 import sys
 from common.game.board import *
 from client_connection import *
+import tkMessageBox
 
 
 class Application(Tk.Frame):
@@ -57,6 +58,9 @@ class Application(Tk.Frame):
         self.name_var = Tk.StringVar()
         self.name_var.set('Unknown')
 
+        self.board_size_var = Tk.StringVar()
+        self.board_size_var.set("10")
+
         self.selected_tool_var = Tk.StringVar()
         self.selected_tool_var.set("Set ships")
 
@@ -87,6 +91,10 @@ class Application(Tk.Frame):
         #
         #Widgets
         #
+
+        self.master_frame = None
+        self.own_board_frame = None
+        self.other_board_frame = None
 
         self.setup_frame = None
         self.ship_menu = None
@@ -165,26 +173,26 @@ class Application(Tk.Frame):
         self.master.after(100, self.state_machine)
 
     def create_widgets(self):
-        master_frame = Tk.Frame(self)
-        self.setup_frame = self.build_setup_frame(master_frame)
+        self.master_frame = Tk.Frame(self)
+        self.setup_frame = self.build_setup_frame(self.master_frame)
         self.setup_frame.grid(row=0, column=0, pady=10)
 
-        self.connection_frame = self.build_connection_frame(master_frame)
+        self.connection_frame = self.build_connection_frame(self.master_frame)
         self.connection_frame.grid(row=0, column=1, pady=10)
 
-        self.game_frame = self.build_game_frame(master_frame)
+        self.game_frame = self.build_game_frame(self.master_frame)
         self.game_frame.grid(row=0, column=2, pady=10)
 
-        own_board_frame = self.own_board.init_board(master_frame, True)
+        self.own_board_frame = self.own_board.init_board(self.master_frame, True, 10)
         self.own_board.on_click_delegate = self.on_own_board_click
 
-        other_board_frame = self.other_board.init_board(master_frame, True)
+        self.other_board_frame = self.other_board.init_board(self.master_frame, True, 10)
         self.other_board.on_click_delegate = self.on_other_board_click
 
-        own_board_frame.grid(row=1, column=0, padx=10, columnspan=2)
-        other_board_frame.grid(row=1, column=2, padx=10, columnspan=2)
+        self.own_board_frame.grid(row=1, column=0, padx=10, columnspan=2)
+        self.other_board_frame.grid(row=1, column=2, padx=10, columnspan=2)
 
-        master_frame.pack()
+        self.master_frame.pack()
 
     def build_setup_frame(self, parent):
         setup_frame = Tk.Frame(parent)
@@ -198,12 +206,19 @@ class Application(Tk.Frame):
         ship_direction_menu = Tk.OptionMenu(setup_frame, self.selected_direction_var, "N", "W", "S", "E")
         setup_ready_button = Tk.Button(setup_frame, text="Ready", command=self.setup_ready_button_pressed)
 
+        board_size_label = Tk.Label(setup_frame, text="Board size:")
+        board_size_entry = Tk.Entry(setup_frame, textvariable=self.board_size_var)
+        board_size_set_button = Tk.Button(setup_frame, text="Set", command=self.board_size_set_button_pressed)
+
         name_label.grid(row=0, column=0, padx=5, pady=0)
         name_box.grid(row=0, column=1, padx=5, pady=0, columnspan=2)
         ship_label.grid(row=1, column=0, padx=5, pady=0)
         self.ship_menu.grid(row=1, column=1, padx=5, pady=0)
         ship_direction_menu.grid(row=1, column=2, padx=5, pady=0)
         setup_ready_button.grid(row=2, column=0, padx=5, pady=0)
+        board_size_label.grid(row=2, column=1, padx=5, pady=0)
+        board_size_entry.grid(row=2, column=2, padx=5, pady=0)
+        board_size_set_button.grid(row=2, column=3, padx=5, pady=0)
 
         return setup_frame
 
@@ -313,6 +328,27 @@ class Application(Tk.Frame):
     # Button press handlers
     #------------------------
 
+    def board_size_set_button_pressed(self):
+        size = None
+
+        try:
+            size = int(self.board_size_var.get())
+        except ValueError:
+            return
+
+        if size < 8 or size > 14:
+            return
+
+        self.own_board_frame.grid_remove()
+        self.other_board_frame.grid_remove()
+
+        self.own_board_frame = self.own_board.init_board(self.master_frame, True, size)
+        self.other_board_frame = self.other_board.init_board(self.master_frame, True, size)
+
+        self.own_board_frame.grid(row=1, column=0, padx=10, columnspan=2)
+        self.other_board_frame.grid(row=1, column=2, padx=10, columnspan=2)
+
+
     def setup_ready_button_pressed(self):
         logging.debug("Setup ready button pressed")
         self.set_name = self.name_var.get()
@@ -367,7 +403,9 @@ class Application(Tk.Frame):
             self.connection.send(packet, self.on_respond_player_list)
 
     def leave_game_button_pressed(self):
-        pass
+        if self.state == self.IN_GAME or self.state == self.PLAYING:
+            packet = LeaveGamePacket(self.set_name)
+            self.connection.send(packet, self.on_respond_leave_game)
 
     def start_game_button_pressed(self):
         if self.state == self.IN_GAME:
@@ -466,8 +504,10 @@ class Application(Tk.Frame):
 
         elif packet_type == "GameOverPacket":
             if packet.did_i_win:
+                tkMessageBox.showinfo("Game Over", "YOU WON! " + self.set_name)
                 logging.info("I AM THE CHAMPION!")
             else:
+                tkMessageBox.showinfo("Game Over", "YOU LOST! " + self.set_name)
                 logging.info("Lost?! Again?!")
 
             self.own_board.clear()
@@ -495,13 +535,19 @@ class Application(Tk.Frame):
 
         elif packet_type == "GameOverPacket":
             if packet.did_i_win:
+                tkMessageBox.showinfo("Game Over", "YOU WON! " + self.set_name)
                 logging.info("I AM THE CHAMPION!")
             else:
+                tkMessageBox.showinfo("Game Over", "YOU LOST! " + self.set_name)
                 logging.info("Lost?! Again?!")
 
             self.own_board.clear()
             self.state = self.SETTING_UP
 
+    def on_respond_leave_game_handler(self, response):
+        self.own_board.remove_hits()
+        self.other_board.clear()
+        self.state = self.CONNECTED
     #
     # PUBLIC
     #
@@ -532,6 +578,9 @@ class Application(Tk.Frame):
 
     def on_shoot_packet_response(self, response):
         self.msg_queue.put(lambda: self.on_shoot_packet_response_handler(response))
+
+    def on_respond_leave_game(self, response):
+        self.msg_queue.put(lambda: self.on_respond_leave_game_handler(response))
 
 logging.basicConfig(level=logging.INFO)
 root = Tk.Tk()

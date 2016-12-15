@@ -33,11 +33,13 @@ class Board:
         self.slots = []
         self.state = self.SETTING_SHIPS
 
-    def init_board(self, master_frame, is_interactive):
+    def init_board(self, master_frame, is_interactive, size):
         frame = Tk.Frame(master_frame)
+        self.slots = []
+        self.label_LUT = {}
 
-        for i in range(10):
-            for j in range(10):
+        for i in range(size):
+            for j in range(size):
                 l = Tk.Label(frame, image=self.empty_img)
 
                 if is_interactive:
@@ -284,6 +286,18 @@ class Board:
 
         return count
 
+    def remove_hits(self):
+        for slot in self.slots:
+            if slot.state == Slot.HIT:
+                self.set_slot_state(slot, Slot.SHIP)
+            elif slot.state == Slot.MISS:
+                self.set_slot_state(slot, Slot.EMPTY)
+
     def refresh(self):
         for slot in self.slots:
             self.set_picture(slot.x, slot.y, slot.state)
+
+    @staticmethod
+    def board_size_from_serialized(serialized_board):
+        serialized_slots = serialized_board.split(Slot.OBJ_SEPARATOR)
+        return len(serialized_slots)

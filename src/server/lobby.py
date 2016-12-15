@@ -4,6 +4,7 @@ import pika
 from server_connection import *
 import common.protocol as P
 from common.packets import *
+from common.game.board import *
 from player import *
 from game import *
 
@@ -46,6 +47,8 @@ class Lobby(SynchronizedRequestHandler):
                 response = self.handle_request_player_board_packet(packet)
             elif packet_type == "ShootPacket":
                 response = self.handle_shoot_packet(packet)
+            elif packet_type == "LeaveGamePacket":
+                response = self.handle_leave_game_packet(packet)
             else:
                 logging.info("Unknown packet received")
 
@@ -81,6 +84,7 @@ class Lobby(SynchronizedRequestHandler):
         logging.info("Starting new game: " + packet.game_name)
         game = Game(packet.game_name)
         game.players.append(player)
+        game.board_size = Board.board_size_from_serialized(player.board)
         self.games.append(game)
 
         return P.RESPOND_OK
@@ -95,6 +99,9 @@ class Lobby(SynchronizedRequestHandler):
         if join_game is None:
             return P.RESPOND_NOT_OK
 
+        if join_game.ongoing:
+            return P.RESPOND_NOT_OK
+
         logging.info("Adding player: " + packet.source + " to game: " + join_game.name)
 
         player = self.get_player_by_name(packet.source)
@@ -103,10 +110,29 @@ class Lobby(SynchronizedRequestHandler):
             logging.info("Wtf where did he go?!")
             return P.RESPOND_NOT_OK
 
+        player_board_size = Board.board_size_from_serialized(player.board)
+
+        if player_board_size != join_game.board_size:
+            return P.RESPOND_NOT_OK
+
         if player not in join_game.players:
             join_game.players.append(player)
             logging.info("Game " + join_game.name + " currently has " + str(len(join_game.players)) + " players")
 
+        return P.RESPOND_OK
+
+    def handle_leave_game_packet(self, packet):
+        player = self.get_player_by_name(packet.source)
+        game = self.get_game_by_player_name(packet.source)
+
+        if game is None:
+            logging.info("Player tried to leave game, but he ain't in one")
+            return P.RESPOND_NOT_OK
+
+        if game.current_turn == game.players.index(player):
+            game.increment_turn()
+
+        game.players.remove(player)
         return P.RESPOND_OK
 
     def handle_request_game_list_packet(self, packet):
@@ -185,6 +211,13 @@ class Lobby(SynchronizedRequestHandler):
             response_packet = GameOverPacket(False, player.board)
             return response_packet.serialize()
 
+        if len(game.players) == 1:
+            if game.players[0] == player:
+                response_packet = GameOverPacket(True, player.board)
+                if game in self.games:
+                    self.games.remove(game)
+                return response_packet.serialize()
+
         if game.current_turn == game.players.index(player):
             packet = RespondRefreshPacket(True, player.board)
             return packet.serialize()
@@ -230,7 +263,8 @@ class Lobby(SynchronizedRequestHandler):
 
         if len(game.players) == 1:
             packet = GameOverPacket(True, source_player.board)
-            self.games.remove(game)
+            if game in self.games:
+                self.games.remove(game)
             return packet.serialize()
 
         game.increment_turn()

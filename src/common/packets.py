@@ -42,6 +42,8 @@ def try_parse_packet(message):
             elif count == 14:
                 packet = GameOverPacket.try_parse(message)
             elif count == 15:
+                packet = LeaveGamePacket.try_parse(message)
+            elif count == 16:
                 logging.info("Try parse failed to recognize any packet")
                 break
             count += 1
@@ -476,4 +478,30 @@ class GameOverPacket():
             bool_value = True
 
         packet = GameOverPacket(bool_value, fields[1])
+        return packet
+
+
+class LeaveGamePacket():
+    def __init__(self, source):
+        self.source = source
+
+    def serialize(self):
+        message = "LEAVE GAME" + P.HEADER_SEPARATOR
+        message += self.source
+
+        return message
+
+    @staticmethod
+    def try_parse(message):
+        parts = message.split(P.HEADER_SEPARATOR)
+
+        if len(parts) != 2:
+            return None
+
+        if parts[0] != "LEAVE GAME":
+            return None
+
+        fields = parts[1].split(P.FIELD_SEPARATOR)
+
+        packet = LeaveGamePacket(fields[0])
         return packet

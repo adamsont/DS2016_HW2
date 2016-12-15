@@ -11,6 +11,7 @@ class Game():
         self.ongoing = False
         self.players = []
         self.current_turn = 0
+        self.board_size = -1
 
     def increment_turn(self):
         self.current_turn += 1
